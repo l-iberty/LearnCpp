@@ -1,0 +1,1 @@
+ref to [C++ and STL: Take Advantage of STL Algorithms by Implementing a Custom Iterator](https://docs.microsoft.com/en-us/archive/msdn-magazine/2001/april/c-and-stl-take-advantage-of-stl-algorithms-by-implementing-a-custom-iterator)
