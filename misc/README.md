@@ -502,22 +502,23 @@ int main() {
 类型是明确的，编译链接正常进行。
 
 如果使用模板：
-`foo.h`=>
+
 ```cpp
+// foo.h
 template<class T>
 T foo(T x, T y);
 ```
 
-`foo.cpp`=>
 ```cpp
+// foo.cpp
 template<class T>
 T foo(T x, T y) {
 	return x + y;
 }
 ```
 
-`main.cpp`=>
 ```cpp
+// main.cpp
 #include "foo.h"
 
 int main() {
