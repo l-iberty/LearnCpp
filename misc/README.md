@@ -470,7 +470,60 @@ template<class _Ty>
 - `const_cast`
 - `reinterpret_cast`
 
-## C++11新特性
+### C++11新特性
 - `unordered_map`(和`hash_map`没有本质区别, 都是基于hashtable)
 - `shared_ptr`, `unique_ptr`
 - 移动构造函数, 移动赋值运算符, std::move, std::forward
+
+### 为什么模板类（函数）的声明和实现要一起放在h文件里？
+如果不使用模板：
+`foo.h`=>
+```cpp
+int foo(int x, int y);
+```
+
+`foo.cpp`=>
+```cpp
+int foo(int x, int y) {
+    return x+y;
+}
+```
+
+`main.cpp`=>
+```cpp
+#include "foo.h"
+
+int main() {
+    int x=0, y=1;
+    foo(x,y);
+}
+```
+
+类型是明确的，编译链接正常进行。
+
+如果使用模板：
+`foo.h`=>
+```cpp
+template<class T>
+T foo(T x, T y);
+```
+
+`foo.cpp`=>
+```cpp
+template<class T>
+T foo(T x, T y) {
+	return x + y;
+}
+```
+
+`main.cpp`=>
+```cpp
+#include "foo.h"
+
+int main() {
+    int x=0, y=1;
+    foo<int>(x,y);
+}
+```
+
+由`main.cpp`编译到目标文件`main.o`的过程中，模板被特化，编译正常。但是编译`foo.cpp`的时候编译器不知道如何特化模板，这是因为编译是以单个文件为单位的。最终链接器无法找到`main.o`中的`foo<int>()`的实现，导致**链接错误**
