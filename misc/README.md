@@ -477,20 +477,21 @@ template<class _Ty>
 
 ### 为什么模板类（函数）的声明和实现要一起放在h文件里？
 如果不使用模板：
-`foo.h`=>
+
 ```cpp
+// foo.h
 int foo(int x, int y);
 ```
 
-`foo.cpp`=>
 ```cpp
+// foo.cpp
 int foo(int x, int y) {
     return x+y;
 }
 ```
 
-`main.cpp`=>
 ```cpp
+// main.cpp
 #include "foo.h"
 
 int main() {
