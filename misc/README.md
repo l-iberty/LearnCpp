@@ -195,7 +195,7 @@ private:
 public:
     my_shared_ptr()
         : ptr(0), rep(0) {}
-    explicit my_shared_ptr(T* p) 
+    explicit my_shared_ptr(T* p)
         : ptr(p), rep(new RefCount()) {}
     my_shared_ptr(my_shared_ptr& rhs)
         : ptr(rhs.ptr), rep(rhs.rep) {
@@ -263,13 +263,13 @@ int main()
 
     p3 = p1;
     //           p3
-    //           | 
+    //           |
     //           v
     // p1 --> [objx] <-- p2      [objy] <-- p4
 
     p4 = p1;
     //           p3
-    //           | 
+    //           |
     //           v
     // p1 --> [objx] <-- p2      [objy]
     //           ^
@@ -335,6 +335,61 @@ int main()
 }
 ```
 也会因为同样的原理而使得3个`node`对象无法被释放。
+
+**`shared_ptr`用于对象数组的问题**
+对象数组的释放应该使用`delete[]`，如果使用`delete`会出错。`shared_ptr`为解决这个问题允许用户提供一个自定义的 deleter：
+```cpp
+std::shared_ptr<People> p(new People[10], std::default_delete<People[]>());
+```
+
+`std::default_delete`源码如下：
+```cpp
+template<class _Ty>
+	struct default_delete
+	{	// default deleter for unique_ptr
+	typedef default_delete<_Ty> _Myt;
+
+	default_delete() _NOEXCEPT
+		{	// default construct
+		}
+
+	template<class _Ty2,
+		class = typename enable_if<is_convertible<_Ty2 *, _Ty *>::value,
+			void>::type>
+		default_delete(const default_delete<_Ty2>&) _NOEXCEPT
+		{	// construct from another default_delete
+		}
+
+	void operator()(_Ty *_Ptr) const _NOEXCEPT
+		{	// delete a pointer
+		static_assert(0 < sizeof (_Ty),
+			"can't delete an incomplete type");
+		delete _Ptr;
+		}
+	};
+
+template<class _Ty>
+	struct default_delete<_Ty[]>
+	{	// default deleter for unique_ptr to array of unknown size
+	typedef default_delete<_Ty> _Myt;
+
+	default_delete() _NOEXCEPT
+		{	// default construct
+		}
+
+	template<class _Other>
+		void operator()(_Other *) const = delete;
+
+	void operator()(_Ty *_Ptr) const _NOEXCEPT
+		{	// delete a pointer
+		static_assert(0 < sizeof (_Ty),
+			"can't delete an incomplete type");
+		delete[] _Ptr;
+		}
+	};
+```
+
+`std::default_delete`有一个偏特化版本`template<class _Ty> struct default_delete<_Ty[]>`，当模板参数类型是数组类型是就会使用它.
 
 #### <font color="#DC143C">`unique_ptr`</font>
 C++11的`unique_ptr`独占所指的对象，一个对象只能被一个`unique_ptr`所指（通过禁止拷贝语义，只有移动语义来实现，即禁用拷贝构造函数和赋值运算符，只有移动构造函数和移动赋值运算符），否则会因为二次释放导致异常。
@@ -416,19 +471,19 @@ int &&c = 5; // c是右值引用
 反汇编分析：
 ```cpp
     int &a = x; // 左值引用
- lea         eax,[ebp-0Ch]  
- mov         dword ptr [ebp-18h],eax  
+ lea         eax,[ebp-0Ch]
+ mov         dword ptr [ebp-18h],eax
 
     int &&b = x + 1; // 右值引用
- mov         eax,dword ptr [ebp-0Ch]  
- add         eax,1  
- mov         dword ptr [ebp-30h],eax  
- lea         ecx,[ebp-30h]  
- mov         dword ptr [ebp-24h],ecx  
+ mov         eax,dword ptr [ebp-0Ch]
+ add         eax,1
+ mov         dword ptr [ebp-30h],eax
+ lea         ecx,[ebp-30h]
+ mov         dword ptr [ebp-24h],ecx
     int &&c = 5; // 右值引用
- mov         dword ptr [ebp-48h],5  
- lea         eax,[ebp-48h]  
- mov         dword ptr [ebp-3Ch],eax  
+ mov         dword ptr [ebp-48h],5
+ lea         eax,[ebp-48h]
+ mov         dword ptr [ebp-3Ch],eax
 ```
 右值引用实际上就是将表达式的值保存在栈上，然后取其地址，本质上和左值引用没有区别。
 
@@ -463,6 +518,40 @@ template<class _Ty>
 `std::move`涉及到引用折叠、模板参数推导、无名右值引用等复杂概念，此处从略。
 
 `auto_ptr`在“拷贝”的时候其实并非严格意义上的拷贝。“拷贝”是要保留源对象不变，并基于它复制出一个新的对象出来。但`auto_ptr`的“拷贝”却会将源对象“掏空”，只留一个空壳，实际上是一次资源所有权的转移。`auto_ptr`的危险之处在于看上去是复制，实际上却是转移，C++11中被`unique_ptr`替换，而`unique_ptr`就是用move语义实现的。
+
+**既然`uniqie_ptr`禁用了拷贝构造函数，那么函数能否以`unique_ptr`作为参数或返回值呢？**
+答案是可以的。例如：
+```cpp
+class People {
+ private:
+  int id_;
+  string name_;
+ public:
+  People(int id, const std::string &name) : id_(id), name_(name) {}
+  ~People() {
+    std::cout << "Bye\n";
+  }
+
+  std::string ToString() {
+    return "People " + std::to_string(id_) + ": " + name_;
+  }
+};
+
+std::unique_ptr<People> getPeple(int id, const std::string &name) {
+  std::unique_ptr<People> p(new People(id, name));
+  return p; // 调用移动构造函数将对象 p 拷贝给返回值
+}
+
+void displayPeople(std::unique_ptr<People> p) {
+  std::cout << p->ToString() << "\n";
+}
+
+int main() {
+  std::unique_ptr<People> p = getPeple(1, "Alice");
+  displayPeople(std::move(p));
+}
+```
+传递返回值、将实参拷贝给形参时使用移动构造函数。传递返回值时编译器的思路**可能**是：优先使用拷贝构造函数，如果被禁用则使用移动构造函数，如果还是被禁用就报错。然而将实参拷贝给形参时编译器不会这样自动判断，它只会调用拷贝构造函数，除非你用`std::move`明确告诉它要使用移动构造。
 
 ### C++的四种强制转换
 - `static_cast`
